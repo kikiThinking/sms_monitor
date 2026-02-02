@@ -1,0 +1,19 @@
+[package]
+name = "sms_ml307c"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+crossbeam = "0.8.4"
+reqwest = { version = "0.13.1", features = ["json"] }
+serde_json = "1.0.149"
+serialport = { version = "4.8.1", default-features = false }
+tokio = { version = "1.49.0", features = ["rt", "rt-multi-thread", "macros"] }
+
+
+[profile.release]
+opt-level = 3       # 优化体积（"s" 优化大小，"z" 更激进）
+lto = true            # 启用 Link Time Optimization
+codegen-units = 1     # 减少并行代码生成单元，提升优化效果
+panic = "abort"       # 遇到 panic 直接退出，避免引入 unwinding 代码
+strip = true          # 自动去掉符号表（Rust 1.69+ 支持）
