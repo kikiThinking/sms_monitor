@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use std::error::Error;
 use std::thread;
 use std::time::Duration;
-use tokio::sync::mpsc::Sender;
+use crossbeam::channel::Sender;
 
 pub struct Monitor {
     write: Sender<String>,
@@ -47,11 +47,13 @@ impl Monitor {
             panic!("Attempted to start a module that has not been initialized yet");
         }
 
+        println!("Monitor start function running...");
+
         loop {
             thread::sleep(Duration::from_millis(500));
             if let Ok(resp) = self.control.read() {
-                println!("{}", resp);
                 if resp.contains("+CMT:") {
+                    println!("Test response: {}", resp.trim());
                     if let Some(body_hex) = resp.split('\n').nth(1) {
                         // UDH 前 12 个 hex
                         if body_hex.len() > 12 {
@@ -80,7 +82,9 @@ impl Monitor {
 
                                     // 解码 UCS2
                                     let decoded = decode_ucs2(&full_hex);
-                                    if let Err(e) = self.write.blocking_send(decoded) {
+
+                                    println!("Send to channel");
+                                    if let Err(e) = self.write.send(decoded) {
                                         eprintln!("Send to channel failed: {}", e);
                                     }
                                 }
