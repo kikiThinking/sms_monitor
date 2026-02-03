@@ -12,6 +12,7 @@ hex = "0.4.3"
 regex = "1.12.2"
 serde = { version = "1.0.228", features = ["derive"] }
 serde_yml = "0.0.12"
+tokio = { version = "1.49.0", features = ["rt", "rt-multi-thread", "macros"] }
 
 
 [profile.release]

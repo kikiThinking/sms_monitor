@@ -6,7 +6,8 @@ use std::{env, fs, thread};
 
 mod module;
 
-fn main() {
+#[tokio::main]
+async fn main() {
     let fp = match env::current_exe() {
         Ok(exe_path) => {
             let dir = exe_path.parent().expect("当前路径没有父目录");
@@ -50,20 +51,30 @@ fn main() {
 
     for received in rx.iter() {
         if application_config.telegram.token != "" && application_config.telegram.chat_id != "" {
-            let _ = telegram(
+            if let Err(err) = telegram(
                 application_config.telegram.token.as_str(),
                 application_config.telegram.chat_id.as_str(),
                 &received,
                 application_config.telegram.proxy.as_str(),
-            );
+            )
+            .await
+            {
+                eprintln!("telegram device returned an error: {}", err);
+            }
         }
 
         if application_config.show_doc.token != "" {
-            let _ = show_doc(
-                application_config.show_doc.token.clone().as_str(),
+            if let Err(err) = show_doc(
+                application_config.show_doc.token.as_str(),
                 "新的短信提醒!",
                 &received,
-            );
+            )
+            .await
+            {
+                eprintln!("Failed to send show doc: {}", err);
+            }
         }
+
+        println!("Sent: {}", received);
     }
 }

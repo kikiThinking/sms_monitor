@@ -15,9 +15,9 @@ pub struct Config {
 
 #[derive(Debug, Deserialize)]
 pub struct Telegram {
-    #[serde(rename = "Token")]
+    #[serde(rename = "Token", default)]
     pub token: String,
-    #[serde(rename = "ChatID")]
+    #[serde(rename = "ChatID", default)]
     pub chat_id: String,
     #[serde(rename = "Proxy", default)]
     pub proxy: String,
@@ -25,7 +25,7 @@ pub struct Telegram {
 
 #[derive(Debug, Deserialize)]
 pub struct ShowDoc {
-    #[serde(rename = "Token")]
+    #[serde(rename = "Token", default)]
     pub token: String,
 }
 
