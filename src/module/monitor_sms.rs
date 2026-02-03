@@ -1,9 +1,11 @@
 use crate::module::ml307c::Controller;
+use crate::module::udh::UDH;
+use crossbeam::channel::Sender;
 use std::collections::HashMap;
 use std::error::Error;
+use std::string::String;
 use std::thread;
 use std::time::Duration;
-use crossbeam::channel::Sender;
 
 pub struct Monitor {
     write: Sender<String>,
@@ -47,47 +49,39 @@ impl Monitor {
             panic!("Attempted to start a module that has not been initialized yet");
         }
 
-        println!("Monitor start function running...");
+        let mut response: HashMap<u8, Vec<UDH>> = HashMap::new();
 
         loop {
             thread::sleep(Duration::from_millis(500));
             if let Ok(resp) = self.control.read() {
                 if resp.contains("+CMT:") {
-                    println!("Test response: {}", resp.trim());
                     if let Some(body_hex) = resp.split('\n').nth(1) {
-                        // UDH 前 12 个 hex
-                        if body_hex.len() > 12 {
-                            let udh = &body_hex[..12];
-                            let content = &body_hex[12..];
+                        if let Some(udh_decode) = UDH::analysis(body_hex) {
+                            if udh_decode.is_long {
+                                let (batch_id, total): (u8, u8) =
+                                    (udh_decode.batch_id, udh_decode.total);
 
-                            let total = u8::from_str_radix(&udh[8..10], 16).unwrap_or(1);
-                            let seq = u8::from_str_radix(&udh[10..12], 16).unwrap_or(1);
+                                response
+                                    .entry(udh_decode.batch_id)
+                                    .or_insert_with(Vec::new)
+                                    .push(udh_decode);
 
-                            self.total_parts = Some(total);
-                            self.sms_parts.insert(seq, content.to_string());
+                                if let Some(udh_list) = response.get_mut(&batch_id) {
+                                    if udh_list.len() == usize::from(total) {
+                                        // 收集完毕 开始组装
+                                        let mut decode_result = String::new();
+                                        udh_list.sort_by_key(|udh| udh.index);
 
-                            // 如果收齐所有分片
-                            if let Some(t) = self.total_parts {
-                                if self.sms_parts.len() == t as usize {
-                                    // 拼接
-                                    let mut full_hex = String::new();
-                                    let mut keys: Vec<u8> =
-                                        self.sms_parts.keys().cloned().collect();
-                                    keys.sort();
-                                    for k in keys {
-                                        full_hex.push_str(&self.sms_parts[&k]);
-                                    }
-                                    self.sms_parts.clear();
-                                    self.total_parts = None;
-
-                                    // 解码 UCS2
-                                    let decoded = decode_ucs2(&full_hex);
-
-                                    println!("Send to channel");
-                                    if let Err(e) = self.write.send(decoded) {
-                                        eprintln!("Send to channel failed: {}", e);
+                                        for udh in udh_list {
+                                            decode_result.push_str(udh.content.as_str());
+                                        }
+                                        self.write.send(decode_result).unwrap();
+                                        // 删除切片
+                                        response.remove(&batch_id);
                                     }
                                 }
+                            } else {
+                                self.write.send(udh_decode.content).unwrap();
                             }
                         }
                     }
@@ -100,17 +94,17 @@ impl Monitor {
     }
 }
 
-/// 将 UCS2 十六进制字符串解码为 Unicode 文本
-fn decode_ucs2(hex_str: &str) -> String {
-    let mut result = String::new();
-    for i in (0..hex_str.len()).step_by(4) {
-        if i + 4 <= hex_str.len() {
-            if let Ok(code) = u16::from_str_radix(&hex_str[i..i + 4], 16) {
-                if let Some(ch) = std::char::from_u32(code as u32) {
-                    result.push(ch);
-                }
-            }
-        }
-    }
-    result
-}
+// /// 将 UCS2 十六进制字符串解码为 Unicode 文本
+// fn decode_ucs2(hex_str: &str) -> String {
+//     let mut result = String::new();
+//     for i in (0..hex_str.len()).step_by(4) {
+//         if i + 4 <= hex_str.len() {
+//             if let Ok(code) = u16::from_str_radix(&hex_str[i..i + 4], 16) {
+//                 if let Some(ch) = std::char::from_u32(code as u32) {
+//                     result.push(ch);
+//                 }
+//             }
+//         }
+//     }
+//     result
+// }
