@@ -5,9 +5,7 @@ use crossbeam::channel;
 use std::{env, fs, thread};
 
 mod module;
-
-#[tokio::main]
-async fn main() {
+fn main() {
     let fp = match env::current_exe() {
         Ok(exe_path) => {
             let dir = exe_path.parent().expect("当前路径没有父目录");
@@ -56,9 +54,7 @@ async fn main() {
                 application_config.telegram.chat_id.as_str(),
                 &received,
                 application_config.telegram.proxy.as_str(),
-            )
-            .await
-            {
+            ) {
                 eprintln!("telegram device returned an error: {}", err);
             }
         }
@@ -68,9 +64,7 @@ async fn main() {
                 application_config.show_doc.token.as_str(),
                 "新的短信提醒!",
                 &received,
-            )
-            .await
-            {
+            ) {
                 eprintln!("Failed to send show doc: {}", err);
             }
         }
