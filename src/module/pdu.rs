@@ -10,13 +10,14 @@ pub struct PDU {
 
 impl PDU {
     pub fn analysis(data: &str) -> Option<Self> {
-        let (mut is_long, mut batch_id, mut total, mut index, mut content): (
+        let (mut is_long, mut batch_id, mut total, mut index): (
             bool,
             u8,
             u8,
             u8,
-            String,
-        ) = (false, 0, 0, 0, String::new());
+        ) = (false, 0, 0, 0);
+        let content:String;
+
 
         if data.starts_with("050003") && data.len() > 12 {
             is_long = true;
@@ -44,31 +45,37 @@ impl PDU {
     }
 
     fn decode_ucs2(raw: &str) -> String {
-        // 1. 如果不是纯十六进制，直接返回
-        if !raw.chars().all(|c| c.is_ascii_hexdigit()) || raw.len() % 2 != 0 {
+        // 1. 基本合法性校验：必须是偶数长度且全是 16 进制字符
+        if raw.len() % 2 != 0 || !raw.chars().all(|c| c.is_ascii_hexdigit()) {
             return raw.to_string();
         }
 
-        // 2. 尝试解码
-        let data = hex::decode(raw).unwrap_or_default();
-        if data.is_empty() {
-            return raw.to_string();
-        }
+        // 2. 尝试将 16 进制转为字节数组
+        let data = match hex::decode(raw) {
+            Ok(d) => d,
+            Err(_) => return raw.to_string(),
+        };
 
+        // 3. 将字节转为 UTF-16 (UCS-2)
         let mut u16s = Vec::new();
-        for chunk in data.chunks(2) {
-            if chunk.len() == 2 {
-                u16s.push(u16::from_be_bytes([chunk[0], chunk[1]]));
-            }
+        for chunk in data.chunks_exact(2) {
+            u16s.push(u16::from_be_bytes([chunk[0], chunk[1]]));
         }
 
-        let decoded = String::from_utf16(&u16s).unwrap_or_else(|_| raw.to_string());
-
-        // 3. 如果解码结果全是 ASCII，就返回原始字符串
-        if decoded.chars().all(|c| c.is_ascii()) {
-            raw.to_string()
-        } else {
-            decoded
+        match String::from_utf16(&u16s) {
+            Ok(decoded) => {
+                // 核心改进：判断是否包含“有意义”的非 ASCII 字符（如中文）
+                // 或者判断解码后的字符是否包含不可打印字符。
+                // 如果你希望 4F604EEC 转换，而 31(即'1') 不转换：
+                if decoded.chars().any(|c| !c.is_ascii()) {
+                    decoded
+                } else {
+                    // 如果全是 ASCII（比如解码出来是 "1"），通常说明原字符串可能就是想表达 "31" 这个文本
+                    // 这里你可以根据业务决定：是返回解码后的 "1" 还是原始文本 "31"
+                    raw.to_string()
+                }
+            }
+            Err(_) => raw.to_string(),
         }
     }
 }
