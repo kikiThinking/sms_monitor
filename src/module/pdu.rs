@@ -1,6 +1,6 @@
 use regex::Regex;
 
-pub struct UDH {
+pub struct PDU {
     pub batch_id: u8,
     pub total: u8,
     pub index: u8,
@@ -8,7 +8,7 @@ pub struct UDH {
     pub content: String,
 }
 
-impl UDH {
+impl PDU {
     pub fn analysis(data: &str) -> Option<Self> {
         let (mut is_long, mut batch_id, mut total, mut index, mut content): (
             bool,

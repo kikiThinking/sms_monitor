@@ -1,7 +1,6 @@
 use crate::module::monitor_sms::Monitor;
 use crossbeam::channel;
 use std::thread;
-use std::time::Duration;
 
 mod module;
 
@@ -34,8 +33,6 @@ fn main() {
     for received in rx.iter() {
         println!("Monitor received: {}", received);
     }
-
-    println!("Process end")
 
     // // 4. 异步接收并推送
     // while let Some(received) = rx.recv().await {

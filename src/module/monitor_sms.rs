@@ -1,5 +1,5 @@
 use crate::module::ml307c::Controller;
-use crate::module::udh::UDH;
+use crate::module::pdu::PDU;
 use crossbeam::channel::Sender;
 use std::collections::HashMap;
 use std::error::Error;
@@ -10,8 +10,6 @@ use std::time::Duration;
 pub struct Monitor {
     write: Sender<String>,
     control: Controller,
-    sms_parts: HashMap<u8, String>, // 缓存分片
-    total_parts: Option<u8>,        // 总分片数
     is_init: bool,
 }
 
@@ -20,8 +18,6 @@ impl Monitor {
         Monitor {
             write,
             control,
-            sms_parts: Default::default(),
-            total_parts: None,
             is_init: false,
         }
     }
@@ -49,39 +45,40 @@ impl Monitor {
             panic!("Attempted to start a module that has not been initialized yet");
         }
 
-        let mut response: HashMap<u8, Vec<UDH>> = HashMap::new();
+        let mut response: HashMap<u8, Vec<PDU>> = HashMap::new();
 
         loop {
             thread::sleep(Duration::from_millis(500));
             if let Ok(resp) = self.control.read() {
                 if resp.contains("+CMT:") {
                     if let Some(body_hex) = resp.split('\n').nth(1) {
-                        if let Some(udh_decode) = UDH::analysis(body_hex) {
-                            if udh_decode.is_long {
+                        if let Some(pdu_decode) = PDU::analysis(body_hex) {
+                            if pdu_decode.is_long {
                                 let (batch_id, total): (u8, u8) =
-                                    (udh_decode.batch_id, udh_decode.total);
+                                    (pdu_decode.batch_id, pdu_decode.total);
 
                                 response
-                                    .entry(udh_decode.batch_id)
+                                    .entry(pdu_decode.batch_id)
                                     .or_insert_with(Vec::new)
-                                    .push(udh_decode);
+                                    .push(pdu_decode);
 
-                                if let Some(udh_list) = response.get_mut(&batch_id) {
-                                    if udh_list.len() == usize::from(total) {
+                                if let Some(pdu_list) = response.get_mut(&batch_id) {
+                                    if pdu_list.len() == usize::from(total) {
                                         // 收集完毕 开始组装
                                         let mut decode_result = String::new();
-                                        udh_list.sort_by_key(|udh| udh.index);
+                                        pdu_list.sort_by_key(|udh| udh.index);
 
-                                        for udh in udh_list {
+                                        for udh in pdu_list {
                                             decode_result.push_str(udh.content.as_str());
                                         }
+
                                         self.write.send(decode_result).unwrap();
                                         // 删除切片
                                         response.remove(&batch_id);
                                     }
                                 }
                             } else {
-                                self.write.send(udh_decode.content).unwrap();
+                                self.write.send(pdu_decode.content).unwrap();
                             }
                         }
                     }
@@ -93,18 +90,3 @@ impl Monitor {
         }
     }
 }
-
-// /// 将 UCS2 十六进制字符串解码为 Unicode 文本
-// fn decode_ucs2(hex_str: &str) -> String {
-//     let mut result = String::new();
-//     for i in (0..hex_str.len()).step_by(4) {
-//         if i + 4 <= hex_str.len() {
-//             if let Ok(code) = u16::from_str_radix(&hex_str[i..i + 4], 16) {
-//                 if let Some(ch) = std::char::from_u32(code as u32) {
-//                     result.push(ch);
-//                 }
-//             }
-//         }
-//     }
-//     result
-// }

@@ -46,7 +46,7 @@ impl Controller {
 
     pub fn read(&mut self) -> Result<String, Box<dyn Error>> {
         if let Some(ref mut serial) = self.serial {
-            let mut buf: Vec<u8> = vec![0; 256];
+            let mut buf: Vec<u8> = vec![0; 512];
             match serial.read(buf.as_mut_slice()) {
                 Ok(size) => {
                     let response = String::from_utf8(buf[..size].to_vec())?;
