@@ -1,0 +1,9 @@
+Name: '/dev/ttyUSB2'
+Baud: 115200
+Timeout: 30
+Telegram:
+  Address: ''
+  ChatID: ''
+  Proxy: 'http://localhost:7890/'
+ShowDoc:
+  Address: ''

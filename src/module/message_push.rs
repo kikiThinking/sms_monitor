@@ -1,13 +1,29 @@
+use reqwest::Client;
 use serde_json::json;
 use std::error::Error;
 
-pub async fn telegram(token: &str, chat_id: &str, message: &str) -> Result<(), Box<dyn Error>> {
+pub async fn telegram(
+    token: &str,
+    chat_id: &str,
+    message: &str,
+    proxy: &str,
+) -> Result<(), Box<dyn Error>> {
     let body = json!({
         "chat_id":chat_id,
         "text":message,
     });
 
-    let resp = reqwest::Client::new()
+    let client: Client;
+
+    if proxy != "" {
+        client = Client::builder()
+            .proxy(reqwest::Proxy::all(proxy)?)
+            .build()?;
+    } else {
+        client = Client::new();
+    }
+
+    let resp = client
         .post(format!("https://api.telegram.org/bot{}/sendMessage", token).as_str())
         .header("Content-Type", "application/json")
         .json(&body)

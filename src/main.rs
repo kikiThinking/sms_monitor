@@ -1,14 +1,32 @@
+use crate::module::config::Config;
+use crate::module::message_push::{show_doc, telegram};
 use crate::module::monitor_sms::Monitor;
 use crossbeam::channel;
-use std::thread;
+use std::{env, fs, thread};
 
 mod module;
 
 fn main() {
+    let fp = match env::current_exe() {
+        Ok(exe_path) => {
+            let dir = exe_path.parent().expect("当前路径没有父目录");
+            format!("{}/config.yml", dir.display())
+        }
+        Err(e) => panic!("failed to get current executable: {}", e),
+    };
+
+    let f_result = fs::read_to_string(fp.clone()).expect(format!("{}", fp).as_str());
+
+    let application_config: Config = serde_yml::from_str(&f_result).unwrap();
+
     // 1. 强制刷新输出（或使用 eprintln!）
     println!("Starting connect device..");
 
-    let mut serial = module::ml307c::Controller::new("/dev/ttyUSB2".to_string(), 115200);
+    let mut serial = module::ml307c::Controller::new(
+        application_config.name,
+        application_config.baud,
+        application_config.timeout,
+    );
     serial.connect().expect("Connect failed");
 
     // 2. 使用 tokio 的异步通道
@@ -31,37 +49,21 @@ fn main() {
     });
 
     for received in rx.iter() {
-        println!("Monitor received: {}", received);
+        if application_config.telegram.token != "" && application_config.telegram.chat_id != "" {
+            let _ = telegram(
+                application_config.telegram.token.as_str(),
+                application_config.telegram.chat_id.as_str(),
+                &received,
+                application_config.telegram.proxy.as_str(),
+            );
+        }
+
+        if application_config.show_doc.token != "" {
+            let _ = show_doc(
+                application_config.show_doc.token.clone().as_str(),
+                "新的短信提醒!",
+                &received,
+            );
+        }
     }
-
-    // // 4. 异步接收并推送
-    // while let Some(received) = rx.recv().await {
-    //     println!("New SMS: {}", received);
-    //
-    //     // 使用 tokio::spawn 并发推送，防止网络超时卡住接收逻辑
-    //     let msg = received.clone();
-    //     tokio::spawn(async move {
-    //         let _ = telegram(
-    //             "8001087713:AAHniNA7Df5vWG-lgyuQtFYg8wMOOaoMeSY",
-    //             "-5110051584",
-    //             &msg,
-    //         )
-    //             .await;
-    //         let _ = show_doc(
-    //             "b5eb898252101c380929b7aff8114b9f1865901162",
-    //             "新的短信提醒!",
-    //             &msg,
-    //         )
-    //             .await;
-    //     });
-    // }
-
-    // OK
-    //     +CMT: "+8619123574344",,"26/02/03,14:03:18+32"
-    // Q
-    //     +CMT: "+8619123574344",,"26/02/03,14:03:22+32"
-    // 1
-    //     +CMT: "+8619123574344",,"26/02/03,14:03:59+32"
-    // 4F60597D
-
 }

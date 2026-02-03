@@ -5,20 +5,22 @@ use std::io::Write;
 pub struct Controller {
     name: String,
     baud: u32,
+    timeout: u64,
     serial: Option<Box<dyn serialport::SerialPort>>,
 }
 impl Controller {
-    pub fn new(name: String, baud: u32) -> Controller {
+    pub fn new(name: String, baud: u32, timeout:u64) -> Controller {
         Controller {
             name,
             baud,
+            timeout,
             serial: None,
         }
     }
 
     pub fn connect(&mut self) -> Result<(), Box<dyn Error>> {
         let port = serialport::new(self.name.clone(), self.baud)
-            .timeout(std::time::Duration::from_secs(30))
+            .timeout(std::time::Duration::from_secs(self.timeout))
             .open()?;
         self.serial = Some(port);
         Ok(())
